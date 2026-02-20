@@ -1,25 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
+  "installCommand": "cd frontend && npm install",
   "buildCommand": "cd frontend && npx expo export --platform web",
   "outputDirectory": "frontend/dist",
-  "installCommand": "pip install -r requirements.txt && cd frontend && npm install",
-  "functions": {
-    "api/index.py": {
-      "runtime": "@vercel/python@4.3.1",
-      "maxDuration": 30,
-      "memory": 1024
-    }
-  },
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index.py"
-    },
-    {
-      "source": "/ws/(.*)",
-      "destination": "/api/index.py"
-    }
+    { "source": "/api/(.*)", "destination": "/api/index?path=/$1" },
+    { "source": "/ws/(.*)", "destination": "/api/index?path=/ws/$1" },
+    { "source": "/((?!api/|_next/|assets/|.*\\.).*)", "destination": "/index.html" }
   ],
   "headers": [
     {

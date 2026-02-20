@@ -1,26 +1,63 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
+  TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LineChart } from 'react-native-gifted-charts';
-import { COLORS, SPACING, FONT_SIZES, RADIUS } from '../../src/theme';
+import { useRouter } from 'expo-router';
+import Svg, { Polyline } from 'react-native-svg';
+import { useTheme } from '../../src/contexts/ThemeContext';
+import { ThemeColors, SPACING, FONT_SIZES, RADIUS } from '../../src/theme';
 import { api } from '../../src/api';
-import GlassCard from '../../src/components/GlassCard';
-import LoadingScreen from '../../src/components/LoadingScreen';
+
+function Sparkline({ data, width = 56, height = 24, color }: {
+  data: number[]; width?: number; height?: number; color: string;
+}) {
+  if (!data || data.length < 2) return <View style={{ width, height }} />;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - 2 - ((v - min) / range) * (height - 4);
+    return `${x},${y}`;
+  }).join(' ');
+  return (
+    <Svg width={width} height={height}>
+      <Polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function formatCurrency(n: number): string {
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 export default function PortfolioScreen() {
-  const [data, setData] = useState<any>(null);
+  const { colors } = useTheme();
+  const router = useRouter();
+  const [portfolio, setPortfolio] = useState<any>(null);
   const [risk, setRisk] = useState<any>(null);
+  const [realQuotes, setRealQuotes] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      const [portfolio, riskData] = await Promise.all([api.getPortfolio(), api.getRisk()]);
-      setData(portfolio);
-      setRisk(riskData);
+      const [portfolioRes, riskRes] = await Promise.all([
+        api.getPortfolio(),
+        api.getRisk(),
+      ]);
+      setPortfolio(portfolioRes);
+      setRisk(riskRes);
+      const symbols = (portfolioRes.holdings || []).map((h: any) => h.symbol);
+      if (symbols.length > 0) {
+        try {
+          const quotes = await api.getBatchQuotes(symbols);
+          setRealQuotes(quotes);
+        } catch { /* use fallback */ }
+      }
     } catch (e) {
       console.error('Portfolio fetch error:', e);
     } finally {
@@ -32,151 +69,161 @@ export default function PortfolioScreen() {
   useEffect(() => { fetchData(); }, [fetchData]);
   const onRefresh = () => { setRefreshing(true); fetchData(); };
 
-  if (loading) return <LoadingScreen message="Loading portfolio..." />;
+  const s = useMemo(() => createStyles(colors), [colors]);
 
-  const isUp = (data?.total_pnl || 0) >= 0;
-  const pnlColor = isUp ? COLORS.green.text : COLORS.red.text;
-  const chartColor = isUp ? COLORS.green.primary : COLORS.red.primary;
-  const chartData = (data?.history || []).map((h: any) => ({ value: h.value }));
+  const holdings = portfolio?.holdings || [];
+  const getPrice = (sym: string, fallback: number) => realQuotes[sym]?.price || fallback;
+
+  const totalValue = useMemo(() => {
+    if (!holdings.length) return portfolio?.total_value || 0;
+    return holdings.reduce((sum: number, h: any) => sum + getPrice(h.symbol, h.current_price) * h.shares, 0);
+  }, [holdings, realQuotes, portfolio]);
+
+  const totalCost = portfolio?.total_cost || 0;
+  const totalPnl = totalValue - totalCost;
+  const totalPnlPct = totalCost ? ((totalPnl / totalCost) * 100) : 0;
+  const isUp = totalPnl >= 0;
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[s.safe, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="small" color={colors.green.primary} />
+        <Text style={{ color: colors.text.tertiary, fontSize: FONT_SIZES.sm, marginTop: 12 }}>
+          Loading portfolio...
+        </Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={s.safe}>
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent.blue} />}
+        style={s.scroll}
+        contentContainerStyle={s.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Portfolio</Text>
-
-        {/* Hero Value — Robinhood-style */}
-        <View style={styles.hero}>
-          <Text style={styles.heroAmount}>
-            ${(data?.total_value || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          </Text>
-          <View style={styles.heroPnl}>
-            <Ionicons name={isUp ? 'arrow-up' : 'arrow-down'} size={14} color={pnlColor} />
-            <Text style={[styles.heroPnlText, { color: pnlColor }]}>
-              ${Math.abs(data?.total_pnl || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </Text>
-            <Text style={[styles.heroPnlPct, { color: pnlColor }]}>
-              ({isUp ? '+' : ''}{data?.total_pnl_pct || 0}%)
+        {/* Header */}
+        <View style={s.header}>
+          <Text style={s.totalValue}>${formatCurrency(totalValue)}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+            <Ionicons name={isUp ? 'arrow-up' : 'arrow-down'} size={12} color={isUp ? colors.green.text : colors.red.text} />
+            <Text style={{ fontSize: FONT_SIZES.sm, fontWeight: '600', color: isUp ? colors.green.text : colors.red.text }}>
+              ${formatCurrency(Math.abs(totalPnl))} ({isUp ? '+' : ''}{totalPnlPct.toFixed(2)}%)
             </Text>
           </View>
+          <Text style={s.totalLabel}>Total Portfolio Value</Text>
         </View>
 
-        {/* Chart */}
-        {chartData.length > 0 && (
-          <View style={styles.chartWrap}>
-            <LineChart
-              data={chartData}
-              width={320}
-              height={160}
-              spacing={10}
-              color={chartColor}
-              thickness={2.5}
-              hideDataPoints
-              hideYAxisText
-              hideAxesAndRules
-              curved
-              areaChart
-              startFillColor={chartColor}
-              startOpacity={0.2}
-              endFillColor={COLORS.bg.primary}
-              endOpacity={0}
-              initialSpacing={0}
-              adjustToWidth
-            />
+        {/* P&L Breakdown */}
+        {(portfolio?.hft_pnl || portfolio?.bot_pnl) ? (
+          <View style={{ marginBottom: SPACING.xl }}>
+            <Text style={s.sectionTitle}>P&L Breakdown</Text>
+            <View style={{ backgroundColor: colors.card, borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 0.5, borderColor: colors.border }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ fontSize: FONT_SIZES.sm, color: colors.text.secondary }}>Stock Holdings</Text>
+                <Text style={{ fontSize: FONT_SIZES.sm, fontWeight: '700', color: (totalPnl - (portfolio?.hft_pnl || 0) - (portfolio?.bot_pnl || 0)) >= 0 ? colors.green.text : colors.red.text }}>
+                  ${formatCurrency(portfolio?.stock_value || totalValue)}
+                </Text>
+              </View>
+              {portfolio?.hft_pnl !== 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontSize: FONT_SIZES.sm, color: colors.text.secondary }}>HFT Engine P&L</Text>
+                  <Text style={{ fontSize: FONT_SIZES.sm, fontWeight: '700', color: portfolio.hft_pnl >= 0 ? colors.green.text : colors.red.text }}>
+                    {portfolio.hft_pnl >= 0 ? '+' : ''}${formatCurrency(Math.abs(portfolio.hft_pnl))}
+                  </Text>
+                </View>
+              )}
+              {portfolio?.bot_pnl !== 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: FONT_SIZES.sm, color: colors.text.secondary }}>Arb Bot P&L</Text>
+                  <Text style={{ fontSize: FONT_SIZES.sm, fontWeight: '700', color: portfolio.bot_pnl >= 0 ? colors.green.text : colors.red.text }}>
+                    {portfolio.bot_pnl >= 0 ? '+' : ''}${formatCurrency(Math.abs(portfolio.bot_pnl))}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
-        )}
+        ) : null}
 
-        {/* Risk Metrics */}
+        {/* Stocks List */}
+        <Text style={s.sectionTitle}>Stocks</Text>
+        {holdings.map((h: any) => {
+          const realPrice = getPrice(h.symbol, h.current_price);
+          const pnlPct = ((realPrice - h.avg_cost) / h.avg_cost) * 100;
+          const stockUp = pnlPct >= 0;
+          const sparkPrices = realQuotes[h.symbol]?.sparkline || [h.avg_cost, realPrice];
+
+          return (
+            <TouchableOpacity
+              key={h.symbol}
+              style={s.stockRow}
+              onPress={() => router.push(`/stock/${h.symbol}` as any)}
+              activeOpacity={0.6}
+            >
+              <View style={s.stockLeft}>
+                <Text style={s.stockSymbol}>{h.symbol}</Text>
+                <Text style={s.stockShares}>{h.shares} shares</Text>
+              </View>
+              <View style={s.stockMid}>
+                <Sparkline
+                  data={sparkPrices}
+                  width={56}
+                  height={24}
+                  color={stockUp ? colors.green.primary : colors.red.primary}
+                />
+              </View>
+              <View style={s.stockRight}>
+                <View style={[s.pnlBadge, { backgroundColor: stockUp ? colors.green.soft : colors.red.soft }]}>
+                  <Text style={[s.pnlBadgeText, { color: stockUp ? colors.green.text : colors.red.text }]}>
+                    {stockUp ? '+' : ''}{pnlPct.toFixed(2)}%
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+
+        {/* Risk Section */}
         {risk && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Risk</Text>
-            <View style={styles.metricsRow}>
+          <>
+            <View style={s.divider} />
+            <Text style={s.sectionTitle}>Risk Metrics</Text>
+            <View style={s.riskGrid}>
               {[
-                { label: 'Sharpe', value: risk.sharpe_ratio },
-                { label: 'Beta', value: risk.beta },
-                { label: 'VaR 95%', value: `$${(risk.var_95 || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`, color: COLORS.red.text },
-                { label: 'Volatility', value: `${risk.volatility}%` },
+                { label: 'Sharpe Ratio', value: risk.sharpe_ratio?.toFixed(2) || '—' },
+                { label: 'Beta', value: risk.beta?.toFixed(2) || '—' },
+                { label: 'VaR (95%)', value: `$${(risk.var_95 || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`, color: colors.red.text },
+                { label: 'Volatility', value: `${risk.volatility || 0}%` },
+                { label: 'Max Drawdown', value: `${risk.max_drawdown || 0}%`, color: colors.red.text },
               ].map((m, i) => (
-                <GlassCard key={i} style={styles.metricCard}>
-                  <Text style={styles.metricLabel}>{m.label}</Text>
-                  <Text style={[styles.metricValue, m.color ? { color: m.color } : null]}>{m.value}</Text>
-                </GlassCard>
+                <View key={i} style={s.riskItem}>
+                  <Text style={s.riskLabel}>{m.label}</Text>
+                  <Text style={[s.riskValue, m.color ? { color: m.color } : undefined]}>{m.value}</Text>
+                </View>
               ))}
             </View>
-
-            {risk.alerts?.length > 0 && risk.alerts.map((a: any, i: number) => (
-              <View key={i} style={styles.alertRow}>
-                <Ionicons
-                  name={a.level === 'warning' ? 'alert-circle' : 'information-circle'}
-                  size={16}
-                  color={a.level === 'warning' ? COLORS.accent.amber : COLORS.accent.blue}
-                />
-                <Text style={styles.alertText}>{a.message}</Text>
-              </View>
-            ))}
-          </View>
+          </>
         )}
 
-        {/* Holdings */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Holdings</Text>
-            <Text style={styles.sectionCount}>{(data?.holdings || []).length}</Text>
-          </View>
-          {(data?.holdings || []).map((h: any, i: number) => {
-            const hUp = h.pnl >= 0;
-            return (
-              <GlassCard key={i} style={styles.holdingCard}>
-                <View style={styles.holdingTop}>
-                  <View>
-                    <Text style={styles.holdingSymbol}>{h.symbol}</Text>
-                    <Text style={styles.holdingName}>{h.name}</Text>
-                  </View>
-                  <View style={styles.holdingRight}>
-                    <Text style={styles.holdingValue}>
-                      ${h.market_value?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </Text>
-                    <View style={styles.holdingPnlRow}>
-                      <Ionicons name={hUp ? 'arrow-up' : 'arrow-down'} size={10} color={hUp ? COLORS.green.text : COLORS.red.text} />
-                      <Text style={[styles.holdingPnl, { color: hUp ? COLORS.green.text : COLORS.red.text }]}>
-                        {hUp ? '+' : ''}{h.pnl_pct?.toFixed(1)}%
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-                <View style={styles.holdingMeta}>
-                  <Text style={styles.holdingDetail}>{h.shares} shares</Text>
-                  <Text style={styles.holdingDetail}>Avg ${h.avg_cost?.toFixed(2)}</Text>
-                  <Text style={styles.holdingDetail}>Now ${h.current_price?.toFixed(2)}</Text>
-                </View>
-              </GlassCard>
-            );
-          })}
-        </View>
-
-        {/* Sector Allocation */}
+        {/* Allocation */}
         {risk?.sector_allocation?.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Allocation</Text>
-            <GlassCard>
-              {risk.sector_allocation.map((s: any, i: number) => {
-                const colors = [COLORS.accent.blue, COLORS.accent.purple, COLORS.green.primary, COLORS.accent.amber, COLORS.accent.cyan];
-                return (
-                  <View key={i} style={styles.sectorRow}>
-                    <Text style={styles.sectorName}>{s.sector}</Text>
-                    <View style={styles.sectorBarWrap}>
-                      <View style={[styles.sectorBar, { width: `${s.pct}%`, backgroundColor: colors[i % colors.length] }]} />
-                    </View>
-                    <Text style={styles.sectorPct}>{s.pct}%</Text>
+          <>
+            <View style={s.divider} />
+            <Text style={s.sectionTitle}>Allocation</Text>
+            {risk.sector_allocation.map((sec: any, i: number) => {
+              const barColors = [colors.green.primary, colors.accent.blue, colors.accent.purple, colors.accent.amber, colors.accent.cyan];
+              return (
+                <View key={i} style={s.allocRow}>
+                  <Text style={s.allocName}>{sec.sector}</Text>
+                  <View style={s.allocBarBg}>
+                    <View style={[s.allocBar, { width: `${sec.pct}%`, backgroundColor: barColors[i % barColors.length] }]} />
                   </View>
-                );
-              })}
-            </GlassCard>
-          </View>
+                  <Text style={s.allocPct}>{sec.pct}%</Text>
+                </View>
+              );
+            })}
+          </>
         )}
 
         <View style={{ height: 40 }} />
@@ -185,47 +232,36 @@ export default function PortfolioScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.bg.primary },
+const createStyles = (t: ThemeColors) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: t.bg.primary },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm },
-  title: { fontSize: FONT_SIZES.xxxl, fontWeight: '800', color: COLORS.text.primary, letterSpacing: -0.5, marginBottom: SPACING.xl },
+  content: { paddingHorizontal: SPACING.lg },
 
-  hero: { marginBottom: SPACING.lg },
-  heroAmount: { fontSize: FONT_SIZES.hero, fontWeight: '800', color: COLORS.text.primary, letterSpacing: -1.5 },
-  heroPnl: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
-  heroPnlText: { fontSize: FONT_SIZES.base, fontWeight: '600' },
-  heroPnlPct: { fontSize: FONT_SIZES.sm },
+  header: { alignItems: 'flex-end', paddingTop: SPACING.sm, marginBottom: SPACING.xl },
+  totalValue: { fontSize: FONT_SIZES.xxxl, fontWeight: '800', color: t.text.primary },
+  totalLabel: { fontSize: FONT_SIZES.sm, color: t.text.tertiary, marginTop: 2 },
 
-  chartWrap: { alignItems: 'center', overflow: 'hidden', marginBottom: SPACING.xl },
+  sectionTitle: { fontSize: FONT_SIZES.lg, fontWeight: '700', color: t.text.primary, marginBottom: SPACING.md },
 
-  section: { marginBottom: SPACING.xl },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: SPACING.md },
-  sectionTitle: { fontSize: FONT_SIZES.lg, fontWeight: '700', color: COLORS.text.primary, marginBottom: SPACING.md },
-  sectionCount: { fontSize: FONT_SIZES.sm, color: COLORS.text.muted },
+  stockRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: t.border },
+  stockLeft: { flex: 1 },
+  stockSymbol: { fontSize: FONT_SIZES.base, fontWeight: '700', color: t.text.primary },
+  stockShares: { fontSize: FONT_SIZES.xs, color: t.text.tertiary, marginTop: 2 },
+  stockMid: { width: 70, alignItems: 'center', marginHorizontal: SPACING.sm },
+  stockRight: { alignItems: 'flex-end' },
+  pnlBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4 },
+  pnlBadgeText: { fontSize: FONT_SIZES.sm, fontWeight: '700' },
 
-  metricsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.md },
-  metricCard: { width: '47%' as any },
-  metricLabel: { fontSize: FONT_SIZES.xs, color: COLORS.text.muted, marginBottom: 4 },
-  metricValue: { fontSize: FONT_SIZES.xxl, fontWeight: '800', color: COLORS.text.primary, letterSpacing: -0.5 },
+  divider: { height: 0.5, backgroundColor: t.border, marginVertical: SPACING.xl },
 
-  alertRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.glass.border },
-  alertText: { flex: 1, fontSize: FONT_SIZES.sm, color: COLORS.text.secondary },
+  riskGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md },
+  riskItem: { width: '47%' as any, backgroundColor: t.card, borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 0.5, borderColor: t.border },
+  riskLabel: { fontSize: FONT_SIZES.xs, color: t.text.tertiary, marginBottom: 4 },
+  riskValue: { fontSize: FONT_SIZES.xxl, fontWeight: '800', color: t.text.primary },
 
-  holdingCard: { marginBottom: SPACING.sm },
-  holdingTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  holdingSymbol: { fontSize: FONT_SIZES.xl, fontWeight: '800', color: COLORS.text.primary },
-  holdingName: { fontSize: FONT_SIZES.xs, color: COLORS.text.muted, marginTop: 2 },
-  holdingRight: { alignItems: 'flex-end' },
-  holdingValue: { fontSize: FONT_SIZES.base, fontWeight: '700', color: COLORS.text.primary },
-  holdingPnlRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 3 },
-  holdingPnl: { fontSize: FONT_SIZES.sm, fontWeight: '600' },
-  holdingMeta: { flexDirection: 'row', gap: SPACING.lg, marginTop: SPACING.md },
-  holdingDetail: { fontSize: FONT_SIZES.xs, color: COLORS.text.muted },
-
-  sectorRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
-  sectorName: { width: 100, fontSize: FONT_SIZES.sm, color: COLORS.text.secondary },
-  sectorBarWrap: { flex: 1, height: 5, backgroundColor: COLORS.glass.fill, borderRadius: 3, overflow: 'hidden' },
-  sectorBar: { height: '100%', borderRadius: 3 },
-  sectorPct: { width: 40, fontSize: FONT_SIZES.sm, color: COLORS.text.secondary, textAlign: 'right' },
+  allocRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
+  allocName: { width: 100, fontSize: FONT_SIZES.sm, color: t.text.secondary },
+  allocBarBg: { flex: 1, height: 6, backgroundColor: t.bg.tertiary, borderRadius: 3, overflow: 'hidden' },
+  allocBar: { height: '100%', borderRadius: 3 },
+  allocPct: { width: 40, fontSize: FONT_SIZES.sm, color: t.text.secondary, textAlign: 'right', fontWeight: '600' },
 });

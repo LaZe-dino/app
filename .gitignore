@@ -101,3 +101,4 @@ frontend/.expo/
 # Temp scripts
 setup_supabase.py
 test_hft.py
+.vercel

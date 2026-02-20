@@ -15,11 +15,11 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, Optional
 
+import bcrypt
 import jwt
-from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,6 @@ JWT_SECRET = os.environ.get("JWT_SECRET", "hedge-fund-swarm-secret-change-me-in-
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 72
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
@@ -59,10 +58,10 @@ class UpdateProfileRequest(BaseModel):
 # ─── Password Hashing ────────────────────────────────────────────────────────
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
 # ─── JWT ──────────────────────────────────────────────────────────────────────
@@ -199,7 +198,7 @@ async def seed_user_signals(db, user_id: str, get_live_price, MARKET_DATA):
             "current_price": price,
             "reasoning": f"Swarm analysis indicates {action.lower()} signal based on technical and sentiment analysis.",
             "agent_type": "strategist_swarm",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         })
     await db.trade_signals.insert_many(signals)
     logger.info(f"[Auth] Seeded starter signals for user {user_id}")

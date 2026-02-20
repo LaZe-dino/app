@@ -122,7 +122,7 @@ class MarketDataFeedHandler:
     async def _feed_loop(self):
         while self._running:
             try:
-                batch_size = random.randint(5, 20)
+                batch_size = random.randint(2, 8)
                 for _ in range(batch_size):
                     symbol = random.choice(self.symbols)
                     venue = random.choice(self._venues)
@@ -130,7 +130,7 @@ class MarketDataFeedHandler:
                     self.output_queue.publish(event)
                     self._tick_count += 1
 
-                await asyncio.sleep(random.uniform(0.0005, 0.005))
+                await asyncio.sleep(random.uniform(0.05, 0.15))
             except asyncio.CancelledError:
                 break
             except Exception as e:

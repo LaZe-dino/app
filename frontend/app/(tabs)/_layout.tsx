@@ -1,26 +1,36 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, StyleSheet } from 'react-native';
-import { COLORS } from '../../src/theme';
+import { Platform } from 'react-native';
+import { useTheme } from '../../src/contexts/ThemeContext';
 
 export default function TabLayout() {
+  const { colors } = useTheme();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: COLORS.accent.blue,
-        tabBarInactiveTintColor: COLORS.text.muted,
-        tabBarLabelStyle: styles.tabLabel,
-        tabBarIconStyle: styles.tabIcon,
+        tabBarStyle: {
+          backgroundColor: colors.bg.primary,
+          borderTopColor: colors.border,
+          borderTopWidth: 0.5,
+          height: Platform.OS === 'ios' ? 88 : 64,
+          paddingTop: 8,
+          elevation: 0,
+          shadowOpacity: 0,
+        },
+        tabBarActiveTintColor: colors.green.primary,
+        tabBarInactiveTintColor: colors.text.muted,
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600', letterSpacing: 0.2 },
+        tabBarIconStyle: { marginBottom: -2 },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: 'Investing',
           tabBarIcon: ({ color }) => (
-            <Ionicons name="grid-outline" size={21} color={color} />
+            <Ionicons name="bar-chart-outline" size={22} color={color} />
           ),
         }}
       />
@@ -29,7 +39,7 @@ export default function TabLayout() {
         options={{
           title: 'Signals',
           tabBarIcon: ({ color }) => (
-            <Ionicons name="flash-outline" size={21} color={color} />
+            <Ionicons name="flash-outline" size={22} color={color} />
           ),
         }}
       />
@@ -38,7 +48,7 @@ export default function TabLayout() {
         options={{
           title: 'Research',
           tabBarIcon: ({ color }) => (
-            <Ionicons name="search-outline" size={21} color={color} />
+            <Ionicons name="search-outline" size={22} color={color} />
           ),
         }}
       />
@@ -47,7 +57,7 @@ export default function TabLayout() {
         options={{
           title: 'Portfolio',
           tabBarIcon: ({ color }) => (
-            <Ionicons name="pie-chart-outline" size={21} color={color} />
+            <Ionicons name="pie-chart-outline" size={22} color={color} />
           ),
         }}
       />
@@ -56,7 +66,7 @@ export default function TabLayout() {
         options={{
           title: 'HFT',
           tabBarIcon: ({ color }) => (
-            <Ionicons name="pulse-outline" size={21} color={color} />
+            <Ionicons name="pulse-outline" size={22} color={color} />
           ),
         }}
       />
@@ -65,30 +75,10 @@ export default function TabLayout() {
         options={{
           title: 'Agents',
           tabBarIcon: ({ color }) => (
-            <Ionicons name="hardware-chip-outline" size={21} color={color} />
+            <Ionicons name="people-outline" size={22} color={color} />
           ),
         }}
       />
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: COLORS.bg.secondary,
-    borderTopColor: COLORS.glass.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    height: Platform.OS === 'ios' ? 88 : 64,
-    paddingTop: 8,
-    elevation: 0,
-    shadowOpacity: 0,
-  },
-  tabLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
-  tabIcon: {
-    marginBottom: -2,
-  },
-});

@@ -181,9 +181,9 @@ class HFTOrchestrator:
         """
         while self._running:
             try:
-                events = self.event_queue.consume_batch(max_items=64)
+                events = self.event_queue.consume_batch(max_items=16)
                 if not events:
-                    await asyncio.sleep(0.0001)
+                    await asyncio.sleep(0.05)
                     continue
 
                 for event in events:
@@ -216,12 +216,13 @@ class HFTOrchestrator:
                     self.metrics.record_event("tick")
 
                 self._pipeline_cycles += 1
+                await asyncio.sleep(0.01)
 
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error(f"[HFT] Pipeline error: {e}")
-                await asyncio.sleep(0.01)
+                await asyncio.sleep(0.1)
 
     async def _market_making_loop(self):
         """

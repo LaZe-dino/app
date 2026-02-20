@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, FONT_SIZES, RADIUS } from '../theme';
+import { useTheme } from '../contexts/ThemeContext';
+import { SPACING, FONT_SIZES, RADIUS } from '../theme';
 
 interface SignalBadgeProps {
   action: string;
@@ -10,14 +11,16 @@ interface SignalBadgeProps {
 }
 
 export default function SignalBadge({ action, confidence, small }: SignalBadgeProps) {
+  const { colors } = useTheme();
+
   const color =
-    action === 'BUY' ? COLORS.green.primary :
-    action === 'SELL' ? COLORS.red.primary :
-    COLORS.accent.amber;
+    action === 'BUY' ? colors.green.primary :
+    action === 'SELL' ? colors.red.primary :
+    colors.accent.amber;
   const bg =
-    action === 'BUY' ? COLORS.green.soft :
-    action === 'SELL' ? COLORS.red.soft :
-    COLORS.accent.amberSoft;
+    action === 'BUY' ? colors.green.soft :
+    action === 'SELL' ? colors.red.soft :
+    colors.accent.amberSoft;
   const icon =
     action === 'BUY' ? 'arrow-up' :
     action === 'SELL' ? 'arrow-down' :
@@ -27,7 +30,9 @@ export default function SignalBadge({ action, confidence, small }: SignalBadgePr
     <View style={[styles.badge, { backgroundColor: bg }, small && styles.badgeSmall]}>
       <Ionicons name={icon as any} size={small ? 11 : 13} color={color} />
       <Text style={[styles.text, { color }, small && styles.textSmall]}>{action}</Text>
-      <Text style={[styles.conf, small && styles.textSmall]}>{Math.round(confidence * 100)}%</Text>
+      <Text style={[styles.conf, { color: colors.text.tertiary }, small && styles.textSmall]}>
+        {Math.round(confidence * 100)}%
+      </Text>
     </View>
   );
 }
@@ -55,7 +60,6 @@ const styles = StyleSheet.create({
   },
   conf: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.text.tertiary,
     fontWeight: '500',
   },
 });

@@ -2,13 +2,76 @@ const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 const WS_BASE = BASE_URL.replace(/^http/, 'ws') || 'ws://localhost:8000';
 
+// ─── Auth Token Management ──────────────────────────────────────────────────
+
+let _authToken: string | null = null;
+let _authPromise: Promise<void> | null = null;
+
+const DEFAULT_EMAIL = 'demo@hedgefund.ai';
+const DEFAULT_PASSWORD = 'demo123456';
+const DEFAULT_NAME = 'Demo Trader';
+
+async function ensureAuth(): Promise<string> {
+  if (_authToken) return _authToken;
+
+  if (!_authPromise) {
+    _authPromise = (async () => {
+      try {
+        const loginRes = await fetch(`${BASE_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: DEFAULT_EMAIL, password: DEFAULT_PASSWORD }),
+        });
+
+        if (loginRes.ok) {
+          const data = await loginRes.json();
+          _authToken = data.token;
+          return;
+        }
+
+        const regRes = await fetch(`${BASE_URL}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: DEFAULT_EMAIL,
+            password: DEFAULT_PASSWORD,
+            display_name: DEFAULT_NAME,
+          }),
+        });
+
+        if (regRes.ok) {
+          const data = await regRes.json();
+          _authToken = data.token;
+          return;
+        }
+
+        console.error('Auth failed:', await regRes.text());
+      } catch (e) {
+        console.error('Auth error:', e);
+      }
+    })();
+  }
+
+  await _authPromise;
+  return _authToken || '';
+}
+
 async function fetchAPI(endpoint: string, options?: RequestInit) {
+  const token = await ensureAuth();
   const url = `${BASE_URL}/api${endpoint}`;
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...(options?.headers || {}) },
     ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options?.headers || {}),
+    },
   });
   if (!res.ok) {
+    if (res.status === 401) {
+      _authToken = null;
+      _authPromise = null;
+    }
     const err = await res.text();
     throw new Error(err || `API error: ${res.status}`);
   }
@@ -52,6 +115,13 @@ export const api = {
   getQuantData: (symbol: string) => fetchAPI(`/swarm/quantitative/${symbol}`),
   getIngestionCache: () => fetchAPI('/swarm/ingestion/cache'),
 
+  // Real Stock Data (Yahoo Finance)
+  getStockQuote: (symbol: string) => fetchAPI(`/stock/${symbol}/quote`),
+  getStockChart: (symbol: string, range: string = '1D') =>
+    fetchAPI(`/stock/${symbol}/chart?range=${range}`),
+  getBatchQuotes: (symbols: string[]) =>
+    fetchAPI(`/stocks/batch?symbols=${symbols.join(',')}`),
+
   // HFT Engine
   getHFTStatus: () => fetchAPI('/hft/status'),
   getHFTDashboard: () => fetchAPI('/hft/dashboard'),
@@ -66,10 +136,73 @@ export const api = {
   getHFTMetrics: () => fetchAPI('/hft/metrics'),
   getHFTNetwork: () => fetchAPI('/hft/network'),
   getHFTFeedPrices: () => fetchAPI('/hft/feed/prices'),
+  getHFTRealtimePrices: () => fetchAPI('/hft/realtime-prices'),
   simulatePriceShock: (symbol: string, magnitude_pct: number) =>
     fetchAPI('/hft/simulate/price-shock', {
       method: 'POST',
       body: JSON.stringify({ symbol, magnitude_pct }),
+    }),
+
+  // Arbitrage Bot
+  startBot: (budget?: number) => fetchAPI('/bot/start', {
+    method: 'POST',
+    body: JSON.stringify(budget ? { budget } : {}),
+  }),
+  stopBot: () => fetchAPI('/bot/stop', { method: 'POST' }),
+  getBotStatus: () => fetchAPI('/bot/status'),
+  getBotTrades: (limit: number = 50) => fetchAPI(`/bot/trades?limit=${limit}`),
+  getBotPnl: () => fetchAPI('/bot/pnl'),
+  getBotWallet: () => fetchAPI('/bot/wallet'),
+  depositToWallet: (amount: number) =>
+    fetchAPI('/bot/wallet/deposit', { method: 'POST', body: JSON.stringify({ amount }) }),
+  withdrawFromWallet: (amount: number) =>
+    fetchAPI('/bot/wallet/withdraw', { method: 'POST', body: JSON.stringify({ amount }) }),
+
+  // Broker (Alpaca — connect your account for real/paper trading)
+  getBrokerStatus: () => fetchAPI('/broker/status'),
+  connectBroker: (apiKeyId: string, apiSecret: string, paper: boolean = true, useBrokerApi: boolean = false) =>
+    fetchAPI('/broker/connect', {
+      method: 'POST',
+      body: JSON.stringify({ provider: 'alpaca', api_key_id: apiKeyId, api_secret: apiSecret, paper, use_broker_api: useBrokerApi }),
+    }),
+  disconnectBroker: () =>
+    fetchAPI('/broker/disconnect', { method: 'POST' }),
+  placeBrokerOrder: (params: {
+    symbol: string;
+    side: 'buy' | 'sell';
+    qty: number;
+    order_type?: 'market' | 'limit';
+    limit_price?: number;
+    time_in_force?: string;
+  }) =>
+    fetchAPI('/broker/order', {
+      method: 'POST',
+      body: JSON.stringify({
+        symbol: params.symbol,
+        side: params.side,
+        qty: params.qty,
+        order_type: params.order_type ?? 'limit',
+        limit_price: params.limit_price,
+        time_in_force: params.time_in_force ?? 'day',
+      }),
+    }),
+
+  // Alpaca OAuth2 (Connect on behalf of user — no API keys; user authorizes in browser)
+  // Uses backend URL with fallback so OAuth works when EXPO_PUBLIC_BACKEND_URL is unset (e.g. local dev)
+  getAlpacaOAuthAuthorizeUrl: async (env: 'paper' | 'live' = 'paper') => {
+    const base = (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_BACKEND_URL) || 'http://localhost:8000';
+    const url = `${base}/api/alpaca/oauth/authorize?env=${env}`;
+    const res = await fetch(url, { headers: { 'Content-Type': 'application/json' } });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Failed to get OAuth URL: ${res.status}`);
+    }
+    return res.json() as Promise<{ authorization_url: string; state?: string; env?: string }>;
+  },
+  exchangeAlpacaOAuthCode: (code: string, redirectUri: string, env: 'paper' | 'live' = 'paper') =>
+    fetchAPI('/alpaca/oauth/token', {
+      method: 'POST',
+      body: JSON.stringify({ code, redirect_uri: redirectUri, env }),
     }),
 };
 

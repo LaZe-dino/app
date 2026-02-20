@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { COLORS, SPACING, FONT_SIZES, RADIUS } from '../../src/theme';
 import { api, swarmWS } from '../../src/api';
 import GlassCard from '../../src/components/GlassCard';

@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity,
   TextInput, KeyboardAvoidingView, Platform, Keyboard, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, FONT_SIZES, RADIUS } from '../../src/theme';
+import { useRouter } from 'expo-router';
+import { useTheme } from '../../src/contexts/ThemeContext';
+import { ThemeColors, SPACING, FONT_SIZES, RADIUS } from '../../src/theme';
 import { api } from '../../src/api';
 import GlassCard from '../../src/components/GlassCard';
 import SignalBadge from '../../src/components/SignalBadge';
@@ -14,6 +16,8 @@ import LoadingScreen from '../../src/components/LoadingScreen';
 const SYMBOLS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'JPM', 'V', 'UNH', 'SPY', 'QQQ'];
 
 export default function ResearchScreen() {
+  const { colors } = useTheme();
+  const router = useRouter();
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
@@ -53,39 +57,38 @@ export default function ResearchScreen() {
     }
   };
 
+  const s = useMemo(() => createStyles(colors), [colors]);
+
   if (loading) return <LoadingScreen message="Loading reports..." />;
 
-  const sentColor = (s: string) =>
-    s === 'bullish' || s === 'very_bullish' ? COLORS.green.text :
-    s === 'bearish' || s === 'very_bearish' ? COLORS.red.text :
-    COLORS.accent.amber;
+  const sentColor = (sent: string) =>
+    sent === 'bullish' || sent === 'very_bullish' ? colors.green.text :
+    sent === 'bearish' || sent === 'very_bearish' ? colors.red.text :
+    colors.accent.amber;
 
   const report = latestResult?.report;
   const signal = latestResult?.signal;
-  const tech = report?.technical_data;
-  const sent = report?.sentiment_data;
   const rec = report?.swarm_recommendation;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={s.safe}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.content}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent.blue} />}
+          style={s.scroll}
+          contentContainerStyle={s.content}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green.primary} />}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.title}>Research</Text>
+          <Text style={s.title}>Research</Text>
 
           {/* Input */}
-          <GlassCard style={styles.inputCard}>
-            <View style={styles.inputRow}>
+          <GlassCard style={s.inputCard}>
+            <View style={s.inputRow}>
               <TextInput
-                testID="stock-symbol-input"
-                style={styles.input}
+                style={s.input}
                 placeholder="Symbol (e.g. AAPL)"
-                placeholderTextColor={COLORS.text.muted}
+                placeholderTextColor={colors.text.muted}
                 value={symbol}
                 onChangeText={setSymbol}
                 autoCapitalize="characters"
@@ -93,184 +96,114 @@ export default function ResearchScreen() {
                 onSubmitEditing={runAnalysis}
               />
               <TouchableOpacity
-                testID="analyze-btn"
-                style={[styles.analyzeBtn, analyzing && styles.analyzeBtnOff]}
+                style={[s.analyzeBtn, analyzing && s.analyzeBtnOff]}
                 onPress={runAnalysis}
                 disabled={analyzing}
               >
                 {analyzing ? (
-                  <ActivityIndicator size="small" color="#000" />
+                  <ActivityIndicator size="small" color="#FFF" />
                 ) : (
-                  <Ionicons name="arrow-forward" size={18} color="#000" />
+                  <Ionicons name="arrow-forward" size={18} color="#FFF" />
                 )}
               </TouchableOpacity>
             </View>
-            <View style={styles.chips}>
+            <View style={s.chips}>
               {SYMBOLS.slice(0, 6).map(sym => (
                 <TouchableOpacity
                   key={sym}
-                  testID={`quick-symbol-${sym}`}
-                  style={[styles.chip, symbol.toUpperCase() === sym && styles.chipActive]}
+                  style={[s.chip, symbol.toUpperCase() === sym && { backgroundColor: colors.green.primary, borderColor: colors.green.primary }]}
                   onPress={() => setSymbol(sym)}
                 >
-                  <Text style={[styles.chipText, symbol.toUpperCase() === sym && styles.chipTextActive]}>{sym}</Text>
+                  <Text style={[s.chipText, symbol.toUpperCase() === sym && { color: '#FFF' }]}>{sym}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </GlassCard>
 
-          {/* Analyzing */}
           {analyzing && (
-            <GlassCard variant="elevated" style={styles.analyzingCard}>
-              <View style={styles.analyzingRow}>
-                <ActivityIndicator size="small" color={COLORS.accent.blue} />
+            <GlassCard variant="elevated" style={s.analyzingCard}>
+              <View style={s.analyzingRow}>
+                <ActivityIndicator size="small" color={colors.green.primary} />
                 <View>
-                  <Text style={styles.analyzingTitle}>Swarm analyzing {symbol.toUpperCase()}...</Text>
-                  <Text style={styles.analyzingMeta}>Scout → Analyst → NewsHound → Strategist</Text>
+                  <Text style={[s.analyzingTitle, { color: colors.green.primary }]}>
+                    Swarm analyzing {symbol.toUpperCase()}...
+                  </Text>
+                  <Text style={s.analyzingMeta}>Scout → Analyst → NewsHound → Strategist</Text>
                 </View>
               </View>
             </GlassCard>
           )}
 
-          {/* Result */}
           {report && !latestResult.error && (
-            <>
-              <GlassCard variant="elevated" style={styles.resultCard}>
-                <View style={styles.resultTop}>
+            <TouchableOpacity onPress={() => router.push(`/stock/${report.symbol}` as any)} activeOpacity={0.7}>
+              <GlassCard variant="elevated" style={s.resultCard}>
+                <View style={s.resultTop}>
                   <View>
-                    <Text style={styles.resultSymbol}>{report.symbol}</Text>
-                    <Text style={[styles.resultSentiment, { color: sentColor(report.sentiment) }]}>
+                    <Text style={s.resultSymbol}>{report.symbol}</Text>
+                    <Text style={[s.resultSentiment, { color: sentColor(report.sentiment) }]}>
                       {report.sentiment?.toUpperCase()}
                     </Text>
                   </View>
                   {signal && <SignalBadge action={signal.action} confidence={signal.confidence} />}
                 </View>
-                <Text style={styles.resultSummary}>{report.summary}</Text>
-
+                <Text style={s.resultSummary}>{report.summary}</Text>
                 {rec && (
-                  <View style={styles.recGrid}>
+                  <View style={s.recGrid}>
                     {[
-                      { label: 'Target', value: `$${rec.price_target?.toFixed?.(2) || '—'}`, color: COLORS.accent.blue },
-                      { label: 'Stop Loss', value: `$${rec.stop_loss?.toFixed?.(2) || '—'}`, color: COLORS.red.text },
-                      { label: 'R/R', value: `${rec.risk_reward_ratio?.toFixed?.(1) || '—'}x`, color: COLORS.text.primary },
-                      { label: 'Horizon', value: rec.time_horizon || '—', color: COLORS.text.primary },
+                      { label: 'Target', value: `$${rec.price_target?.toFixed?.(2) || '—'}`, color: colors.accent.blue },
+                      { label: 'Stop Loss', value: `$${rec.stop_loss?.toFixed?.(2) || '—'}`, color: colors.red.text },
+                      { label: 'R/R', value: `${rec.risk_reward_ratio?.toFixed?.(1) || '—'}x` },
+                      { label: 'Horizon', value: rec.time_horizon || '—' },
                     ].map((item, i) => (
-                      <View key={i} style={styles.recItem}>
-                        <Text style={styles.recLabel}>{item.label}</Text>
-                        <Text style={[styles.recValue, { color: item.color }]}>{item.value}</Text>
+                      <View key={i} style={s.recItem}>
+                        <Text style={s.recLabel}>{item.label}</Text>
+                        <Text style={[s.recValue, item.color ? { color: item.color } : undefined]}>{item.value}</Text>
                       </View>
                     ))}
                   </View>
                 )}
               </GlassCard>
-
-              {/* Technical */}
-              {tech && (
-                <GlassCard style={styles.dataCard}>
-                  <Text style={styles.dataTitle}>Technical Analysis</Text>
-                  <View style={styles.dataGrid}>
-                    {[
-                      { k: 'RSI', v: tech.rsi, c: (tech.rsi ?? 50) > 70 ? COLORS.red.text : (tech.rsi ?? 50) < 30 ? COLORS.green.text : COLORS.text.primary },
-                      { k: 'SMA 20', v: `$${tech.sma_20 ?? '—'}` },
-                      { k: 'SMA 50', v: `$${tech.sma_50 ?? '—'}` },
-                      { k: 'MACD', v: tech.macd?.histogram?.toFixed?.(4) ?? '—' },
-                      { k: 'Boll ↑', v: `$${tech.bollinger?.upper ?? '—'}` },
-                      { k: 'Boll ↓', v: `$${tech.bollinger?.lower ?? '—'}` },
-                    ].map((d, i) => (
-                      <View key={i} style={styles.dataCell}>
-                        <Text style={styles.dataCellLabel}>{d.k}</Text>
-                        <Text style={[styles.dataCellValue, d.c ? { color: d.c } : null]}>{d.v}</Text>
-                      </View>
-                    ))}
-                  </View>
-                  {tech.signals && (
-                    <View style={styles.sigList}>
-                      {tech.signals.map((s: any, i: number) => (
-                        <View key={i} style={styles.sigRow}>
-                          <Text style={styles.sigIndicator}>{s.indicator}</Text>
-                          <Text style={[styles.sigValue, {
-                            color: ['BULLISH', 'OVERSOLD', 'GOLDEN_CROSS', 'BELOW_LOWER'].includes(s.signal) ?
-                              COLORS.green.text : ['BEARISH', 'OVERBOUGHT', 'DEATH_CROSS', 'ABOVE_UPPER'].includes(s.signal) ?
-                              COLORS.red.text : COLORS.text.secondary
-                          }]}>{s.signal}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </GlassCard>
-              )}
-
-              {/* Sentiment */}
-              {sent && (
-                <GlassCard style={styles.dataCard}>
-                  <Text style={styles.dataTitle}>News Sentiment</Text>
-                  <View style={styles.sentRow}>
-                    <Text style={[styles.sentScore, { color: sentColor(sent.sentiment_label) }]}>
-                      {sent.sentiment_score > 0 ? '+' : ''}{sent.sentiment_score?.toFixed?.(3)}
-                    </Text>
-                    <View style={[styles.sentPill, { backgroundColor: `${sentColor(sent.sentiment_label)}18` }]}>
-                      <Text style={[styles.sentPillText, { color: sentColor(sent.sentiment_label) }]}>
-                        {sent.sentiment_label?.toUpperCase()}
-                      </Text>
-                    </View>
-                    <Text style={styles.sentCount}>{sent.articles_analyzed} articles</Text>
-                  </View>
-                  {sent.top_headlines?.map((h: string, i: number) => (
-                    <View key={i} style={styles.headlineRow}>
-                      <View style={styles.headlineBullet} />
-                      <Text style={styles.headlineText} numberOfLines={2}>{h}</Text>
-                    </View>
-                  ))}
-                </GlassCard>
-              )}
-
-              {/* Factors & Risks */}
-              {report.key_findings?.length > 0 && (
-                <GlassCard style={styles.dataCard}>
-                  <Text style={styles.dataTitle}>Key Factors</Text>
-                  {report.key_findings.map((f: string, i: number) => (
-                    <View key={i} style={styles.factorRow}>
-                      <Ionicons name="checkmark-circle" size={14} color={COLORS.green.primary} />
-                      <Text style={styles.factorText}>{f}</Text>
-                    </View>
-                  ))}
-                </GlassCard>
-              )}
-            </>
+            </TouchableOpacity>
           )}
 
           {latestResult?.error && (
-            <GlassCard><Text style={styles.errorText}>{latestResult.error}</Text></GlassCard>
+            <GlassCard><Text style={s.errorText}>{latestResult.error}</Text></GlassCard>
           )}
 
           {/* Past Reports */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Reports</Text>
-            <Text style={styles.sectionCount}>{reports.length}</Text>
+          <View style={s.sectionHeader}>
+            <Text style={s.sectionTitle}>Reports</Text>
+            <Text style={s.sectionCount}>{reports.length}</Text>
           </View>
           {reports.length === 0 ? (
             <GlassCard variant="subtle">
-              <Text style={styles.emptyText}>No reports yet</Text>
+              <Text style={s.emptyText}>No reports yet</Text>
             </GlassCard>
           ) : (
             reports.slice(0, 10).map((r: any, i: number) => (
-              <GlassCard key={r.id || i} style={styles.reportCard}>
-                <View style={styles.reportTop}>
-                  <Text style={styles.reportSymbol}>{r.symbol}</Text>
-                  <View style={[styles.sentPill, { backgroundColor: `${sentColor(r.sentiment)}18` }]}>
-                    <Text style={[styles.sentPillText, { color: sentColor(r.sentiment) }]}>
-                      {r.sentiment?.toUpperCase()}
+              <TouchableOpacity
+                key={r.id || i}
+                onPress={() => router.push(`/stock/${r.symbol}` as any)}
+                activeOpacity={0.7}
+              >
+                <GlassCard style={s.reportCard}>
+                  <View style={s.reportTop}>
+                    <Text style={s.reportSymbol}>{r.symbol}</Text>
+                    <View style={[s.sentPill, { backgroundColor: `${sentColor(r.sentiment)}18` }]}>
+                      <Text style={[s.sentPillText, { color: sentColor(r.sentiment) }]}>
+                        {r.sentiment?.toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={s.reportSummary} numberOfLines={2}>{r.summary}</Text>
+                  <View style={s.reportFooter}>
+                    <Text style={s.reportRec}>{r.recommendation}</Text>
+                    <Text style={s.reportTime}>
+                      {(r.created_at || r.timestamp) ? new Date(r.created_at || r.timestamp).toLocaleDateString() : ''}
                     </Text>
                   </View>
-                </View>
-                <Text style={styles.reportSummary} numberOfLines={2}>{r.summary}</Text>
-                <View style={styles.reportFooter}>
-                  <Text style={styles.reportRec}>{r.recommendation}</Text>
-                  <Text style={styles.reportTime}>
-                    {r.timestamp ? new Date(r.timestamp).toLocaleDateString() : ''}
-                  </Text>
-                </View>
-              </GlassCard>
+                </GlassCard>
+              </TouchableOpacity>
             ))
           )}
           <View style={{ height: 40 }} />
@@ -280,73 +213,50 @@ export default function ResearchScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.bg.primary },
+const createStyles = (t: ThemeColors) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: t.bg.primary },
   scroll: { flex: 1 },
   content: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm },
-  title: { fontSize: FONT_SIZES.xxxl, fontWeight: '800', color: COLORS.text.primary, letterSpacing: -0.5, marginBottom: SPACING.xl },
+  title: { fontSize: FONT_SIZES.xxxl, fontWeight: '800', color: t.text.primary, letterSpacing: -0.5, marginBottom: SPACING.xl },
 
   inputCard: { marginBottom: SPACING.lg },
   inputRow: { flexDirection: 'row', gap: SPACING.sm },
-  input: { flex: 1, backgroundColor: COLORS.bg.tertiary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md, color: COLORS.text.primary, fontSize: FONT_SIZES.base, borderWidth: StyleSheet.hairlineWidth, borderColor: COLORS.glass.border },
-  analyzeBtn: { width: 48, height: 48, borderRadius: RADIUS.md, backgroundColor: COLORS.accent.blue, justifyContent: 'center', alignItems: 'center' },
+  input: { flex: 1, backgroundColor: t.bg.tertiary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md, color: t.text.primary, fontSize: FONT_SIZES.base, borderWidth: 0.5, borderColor: t.border },
+  analyzeBtn: { width: 48, height: 48, borderRadius: RADIUS.md, backgroundColor: t.green.primary, justifyContent: 'center', alignItems: 'center' },
   analyzeBtnOff: { opacity: 0.5 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginTop: SPACING.md },
-  chip: { paddingHorizontal: SPACING.md, paddingVertical: 6, borderRadius: RADIUS.full, backgroundColor: COLORS.bg.tertiary, borderWidth: StyleSheet.hairlineWidth, borderColor: COLORS.glass.border },
-  chipActive: { backgroundColor: COLORS.accent.blue, borderColor: COLORS.accent.blue },
-  chipText: { fontSize: FONT_SIZES.xs, color: COLORS.text.secondary, fontWeight: '600' },
-  chipTextActive: { color: '#000' },
+  chip: { paddingHorizontal: SPACING.md, paddingVertical: 6, borderRadius: RADIUS.full, backgroundColor: t.bg.tertiary, borderWidth: 0.5, borderColor: t.border },
+  chipText: { fontSize: FONT_SIZES.xs, color: t.text.secondary, fontWeight: '600' },
 
   analyzingCard: { marginBottom: SPACING.lg },
   analyzingRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  analyzingTitle: { fontSize: FONT_SIZES.sm, fontWeight: '600', color: COLORS.accent.blue },
-  analyzingMeta: { fontSize: FONT_SIZES.xs, color: COLORS.text.muted, marginTop: 2 },
+  analyzingTitle: { fontSize: FONT_SIZES.sm, fontWeight: '600' },
+  analyzingMeta: { fontSize: FONT_SIZES.xs, color: t.text.muted, marginTop: 2 },
 
   resultCard: { marginBottom: SPACING.md },
   resultTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
-  resultSymbol: { fontSize: FONT_SIZES.xxl, fontWeight: '800', color: COLORS.text.primary },
+  resultSymbol: { fontSize: FONT_SIZES.xxl, fontWeight: '800', color: t.text.primary },
   resultSentiment: { fontSize: FONT_SIZES.sm, fontWeight: '700', marginTop: 2 },
-  resultSummary: { fontSize: FONT_SIZES.sm, color: COLORS.text.secondary, lineHeight: 22, marginBottom: SPACING.lg },
+  resultSummary: { fontSize: FONT_SIZES.sm, color: t.text.secondary, lineHeight: 22, marginBottom: SPACING.lg },
   recGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  recItem: { width: '47%' as any, backgroundColor: COLORS.bg.tertiary, padding: SPACING.md, borderRadius: RADIUS.md },
-  recLabel: { fontSize: FONT_SIZES.xs, color: COLORS.text.muted, marginBottom: 3 },
-  recValue: { fontSize: FONT_SIZES.lg, fontWeight: '700' },
-
-  dataCard: { marginBottom: SPACING.md },
-  dataTitle: { fontSize: FONT_SIZES.base, fontWeight: '700', color: COLORS.text.primary, marginBottom: SPACING.md },
-  dataGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  dataCell: { width: '30%' as any, backgroundColor: COLORS.bg.tertiary, padding: SPACING.sm + 2, borderRadius: RADIUS.sm },
-  dataCellLabel: { fontSize: FONT_SIZES.xs, color: COLORS.text.muted, marginBottom: 2 },
-  dataCellValue: { fontSize: FONT_SIZES.sm, fontWeight: '700', color: COLORS.text.primary },
-  sigList: { marginTop: SPACING.md },
-  sigRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.glass.border },
-  sigIndicator: { fontSize: FONT_SIZES.sm, color: COLORS.text.secondary, fontWeight: '500' },
-  sigValue: { fontSize: FONT_SIZES.sm, fontWeight: '700' },
-
-  sentRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginBottom: SPACING.md },
-  sentScore: { fontSize: FONT_SIZES.xxl, fontWeight: '800' },
-  sentPill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: RADIUS.full },
-  sentPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-  sentCount: { fontSize: FONT_SIZES.xs, color: COLORS.text.muted },
-  headlineRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginBottom: SPACING.sm },
-  headlineBullet: { width: 4, height: 4, borderRadius: 2, backgroundColor: COLORS.text.muted, marginTop: 7 },
-  headlineText: { flex: 1, fontSize: FONT_SIZES.sm, color: COLORS.text.secondary, lineHeight: 20 },
-
-  factorRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginBottom: SPACING.sm },
-  factorText: { flex: 1, fontSize: FONT_SIZES.sm, color: COLORS.text.secondary, lineHeight: 20 },
+  recItem: { width: '47%' as any, backgroundColor: t.bg.tertiary, padding: SPACING.md, borderRadius: RADIUS.md },
+  recLabel: { fontSize: FONT_SIZES.xs, color: t.text.muted, marginBottom: 3 },
+  recValue: { fontSize: FONT_SIZES.lg, fontWeight: '700', color: t.text.primary },
 
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: SPACING.md, marginTop: SPACING.lg },
-  sectionTitle: { fontSize: FONT_SIZES.lg, fontWeight: '700', color: COLORS.text.primary },
-  sectionCount: { fontSize: FONT_SIZES.sm, color: COLORS.text.muted },
+  sectionTitle: { fontSize: FONT_SIZES.lg, fontWeight: '700', color: t.text.primary },
+  sectionCount: { fontSize: FONT_SIZES.sm, color: t.text.muted },
 
   reportCard: { marginBottom: SPACING.sm },
   reportTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
-  reportSymbol: { fontSize: FONT_SIZES.xl, fontWeight: '800', color: COLORS.text.primary },
-  reportSummary: { fontSize: FONT_SIZES.sm, color: COLORS.text.secondary, lineHeight: 20 },
+  reportSymbol: { fontSize: FONT_SIZES.xl, fontWeight: '800', color: t.text.primary },
+  sentPill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: RADIUS.full },
+  sentPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  reportSummary: { fontSize: FONT_SIZES.sm, color: t.text.secondary, lineHeight: 20 },
   reportFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: SPACING.sm },
-  reportRec: { fontSize: FONT_SIZES.xs, color: COLORS.accent.blue, fontWeight: '700' },
-  reportTime: { fontSize: FONT_SIZES.xs, color: COLORS.text.muted },
+  reportRec: { fontSize: FONT_SIZES.xs, color: t.green.primary, fontWeight: '700' },
+  reportTime: { fontSize: FONT_SIZES.xs, color: t.text.muted },
 
-  errorText: { color: COLORS.red.text, fontSize: FONT_SIZES.sm, textAlign: 'center' },
-  emptyText: { color: COLORS.text.muted, fontSize: FONT_SIZES.sm, textAlign: 'center' },
+  errorText: { color: t.red.text, fontSize: FONT_SIZES.sm, textAlign: 'center' },
+  emptyText: { color: t.text.muted, fontSize: FONT_SIZES.sm, textAlign: 'center' },
 });

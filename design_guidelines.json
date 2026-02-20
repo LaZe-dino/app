@@ -1,0 +1,143 @@
+{
+  "identity": {
+    "name": "E1 - The Anti-AI Designer",
+    "persona": "Expert Creative Designer mixing Bloomberg Terminal Density with Apple Liquid Glass Physics.",
+    "principles": [
+      "Fusion: Raw Data (Terminal) + Organic Physics (Liquid).",
+      "Emotion: Trust (Haptics/Feedback) & Intelligence (AI Glow).",
+      "Content: Data is the hero. Use 'JetBrains Mono' or 'Menlo' for all numbers.",
+      "Zoom In: High contrast signals (Green/Red) against deep black voids.",
+      "Negative Space: The 'Void' is as important as the 'Matter'."
+    ]
+  },
+  "design_system": {
+    "theme": "dark",
+    "colors": {
+      "background": {
+        "primary": "#000000",
+        "secondary": "#0A0A0A",
+        "tertiary": "#121212"
+      },
+      "surface": {
+        "card": "rgba(20, 20, 20, 0.6)",
+        "glass": "rgba(30, 30, 30, 0.4)",
+        "glass_border": "rgba(255, 255, 255, 0.1)"
+      },
+      "text": {
+        "primary": "#FFFFFF",
+        "secondary": "#A1A1AA",
+        "muted": "#52525B",
+        "accent": "#29B6F6"
+      },
+      "status": {
+        "success": "#00E676",
+        "warning": "#FFEA00",
+        "error": "#FF1744",
+        "info": "#29B6F6"
+      },
+      "brand": {
+        "primary": "#29B6F6",
+        "secondary": "#7C4DFF",
+        "ai_glow": "rgba(41, 182, 246, 0.5)"
+      }
+    },
+    "typography": {
+      "font_family": {
+        "heading": "System",
+        "body": "System",
+        "mono": "Menlo" 
+      },
+      "sizes": {
+        "xs": 12,
+        "sm": 13,
+        "base": 15,
+        "lg": 17,
+        "xl": 20,
+        "2xl": 24,
+        "3xl": 30,
+        "4xl": 36,
+        "5xl": 48
+      }
+    },
+    "spacing": {
+      "xs": 4,
+      "sm": 8,
+      "md": 12,
+      "lg": 16,
+      "xl": 24,
+      "2xl": 32,
+      "3xl": 48
+    },
+    "borders": {
+      "radius": {
+        "sm": 4,
+        "md": 8,
+        "lg": 12,
+        "xl": 16,
+        "full": 9999
+      }
+    }
+  },
+  "components": {
+    "GlassCard": {
+      "style": "Liquid Glass",
+      "implementation": "Use 'expo-blur' <BlurView intensity={20} tint='dark' style={{borderRadius: 16, overflow: 'hidden'}}>. Inside: View with rgba(255,255,255,0.05) bg and white border (0.5px).",
+      "usage": "All main containers (Portfolio, Signals, Agents)."
+    },
+    "TerminalText": {
+      "style": "Bloomberg Data",
+      "implementation": "Text style={{fontFamily: 'Menlo', color: '#00E676', letterSpacing: -0.5}}.",
+      "usage": "Stock prices, P&L, Tick changes."
+    },
+    "ActionPill": {
+      "style": "Liquid Button",
+      "implementation": "TouchableOpacity with borderRadius: 30, height: 44, bg: '#29B6F6'. Add 'expo-haptics' feedback on press.",
+      "usage": "Primary actions (Trade, Analyze)."
+    }
+  },
+  "assets": {
+    "images": [
+      {
+        "category": "hero_background",
+        "url": "https://images.unsplash.com/photo-1762279389042-9439bfb6c155?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMHRlY2glMjBkYXRhJTIwdmlzdWFsaXphdGlvbiUyMGRhcmslMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc3MTU0MzQ4MHww&ixlib=rb-4.1.0&q=85",
+        "description": "Abstract neon lines forming a digital landscape for dashboard background"
+      },
+      {
+        "category": "ai_agent_avatar",
+        "url": "https://images.unsplash.com/photo-1744324480866-1794a1bf193c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwxfHxmdXR1cmlzdGljJTIwYWklMjBicmFpbiUyMG5ldHdvcmslMjBkYXJrfGVufDB8fHx8MTc3MTU0MzQ4MHww&ixlib=rb-4.1.0&q=85",
+        "description": "Glowing brain geometric structure for Synthesis Agent"
+      },
+      {
+        "category": "market_data_bg",
+        "url": "https://images.unsplash.com/photo-1762279389006-43963a0cee55?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMHRlY2glMjBkYXRhJTIwdmlzdWFsaXphdGlvbiUyMGRhcmslMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc3MTU0MzQ4MHww&ixlib=rb-4.1.0&q=85",
+        "description": "Abstract neon lines for Market Data screen"
+      },
+      {
+        "category": "risk_agent_avatar",
+        "url": "https://images.unsplash.com/photo-1677212004257-103cfa6b59d0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHw0fHxmdXR1cmlzdGljJTIwYWklMjBicmFpbiUyMG5ldHdvcmslMjBkYXJrfGVufDB8fHx8MTc3MTU0MzQ4MHww&ixlib=rb-4.1.0&q=85",
+        "description": "Glowing light head for Risk Agent"
+      }
+    ],
+    "icons": {
+      "library": "@expo/vector-icons (Ionicons or Feather)",
+      "color": "#A1A1AA"
+    }
+  },
+  "tech_stack": {
+    "root": "/app/frontend",
+    "router": "expo-router",
+    "styling": "StyleSheet + expo-blur + react-native-reanimated",
+    "animations": "react-native-reanimated",
+    "haptics": "expo-haptics"
+  },
+  "instructions_to_main_agent": [
+    "You are working in /app/frontend.",
+    "Install 'react-native-svg' and 'react-native-gifted-charts' immediately for charts.",
+    "Use 'expo-blur' for all glassmorphism effects (Cards, Headers).",
+    "Use 'expo-haptics' for all interactive touches (Selection, Button Press).",
+    "Use 'react-native-reanimated' for entry animations (FadeInDown).",
+    "Use 'SafeAreaView' from 'react-native-safe-area-context' for all screens.",
+    "Structure: app/(tabs)/index.js (Dashboard), app/(tabs)/market.js, app/(tabs)/research.js",
+    "Do NOT use HTML/CSS. Use standard React Native components."
+  ]
+}
